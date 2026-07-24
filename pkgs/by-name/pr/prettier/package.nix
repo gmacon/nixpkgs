@@ -61,17 +61,19 @@ let
 
       pathAbsoluteNaive = "${pluginDir}/${exportPath}";
       pathAbsoluteFallback = "${pluginDir}/${exportPath}.js";
+      pathForeign =
+        if builtins.pathExists pathAbsoluteNaive then
+          pathAbsoluteNaive
+        else if builtins.pathExists pathAbsoluteFallback then
+          pathAbsoluteFallback
+        else
+          lib.warn ''
+            ${plugin.pname}: error context, tried finding entry point under;
+            pathAbsoluteNaive -> ${pathAbsoluteNaive}
+            pathAbsoluteFallback -> ${pathAbsoluteFallback}
+          '' throw "${plugin.pname}: does not provide parse-able entry point";
     in
-    if builtins.pathExists pathAbsoluteNaive then
-      pathAbsoluteNaive
-    else if builtins.pathExists pathAbsoluteFallback then
-      pathAbsoluteFallback
-    else
-      lib.warn ''
-        ${plugin.pname}: error context, tried finding entry point under;
-        pathAbsoluteNaive -> ${pathAbsoluteNaive}
-        pathAbsoluteFallback -> ${pathAbsoluteFallback}
-      '' throw "${plugin.pname}: does not provide parse-able entry point";
+    lib.strings.replaceString plugin.outPath (placeholder "out") pathForeign;
 
   yarnHash = "sha256-KQywjBgJcT6CXT8bd11wT26qmfLen8E/gXhPBA5TY9A=";
 
@@ -183,7 +185,11 @@ stdenv.mkDerivation (finalAttrs: {
 
     mkdir -p $out/lib/node_modules
     cp --recursive dist/prettier "$out/lib/node_modules/prettier"
-
+  ''
+  + (builtins.concatStringsSep "" (
+    builtins.map (plugin: "cp --recursive ${plugin}/lib/node_modules/* $out/lib/node_modules\n") plugins
+  ))
+  + ''
     makeBinaryWrapper "${lib.getExe nodejs}" "$out/bin/prettier" \
       --add-flags "$out/lib/node_modules/prettier/bin/prettier.cjs"
   ''
